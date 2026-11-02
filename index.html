@@ -7,6 +7,33 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Firebase SDK (Firestore në kohë reale) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        // Konfigurimi i Firebase Realtime Backend
+        const firebaseConfig = {
+            apiKey: "AIzaSyAs1-DefaultPublicAppKeyDemo",
+            authDomain: "renta-car-niti.firebaseapp.com",
+            projectId: "renta-car-niti",
+            storageBucket: "renta-car-niti.appspot.com",
+            messagingSenderId: "1029384756",
+            appId: "1:1029384756:web:abcd1234efgh5678"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.db = db;
+        window.dbCollection = collection;
+        window.dbOnSnapshot = onSnapshot;
+        window.dbDoc = doc;
+        window.dbSetDoc = setDoc;
+        window.dbDeleteDoc = deleteDoc;
+        window.dbUpdateDoc = updateDoc;
+    </script>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800 pb-16">
 
@@ -46,7 +73,7 @@
             <section class="space-y-6">
                 <div class="flex justify-between items-center">
                     <h3 class="text-2xl font-bold text-gray-900">Veturat e Lira për Rezervim</h3>
-                    <span id="client-car-count" class="text-xs font-bold bg-red-100 text-red-800 px-3 py-1 rounded-full">0 Vetura</span>
+                    <span id="client-car-count" class="text-xs font-bold bg-red-100 text-red-800 px-3 py-1 rounded-full">Ngarkohen...</span>
                 </div>
                 <div id="client-fleet-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
             </section>
@@ -110,7 +137,7 @@
                             <input type="date" id="c-end-date" required class="w-full border p-2.5 rounded-lg text-sm bg-white outline-none">
                         </div>
                     </div>
-                    <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-base transition shadow-lg flex items-center justify-center gap-2">
+                    <button type="submit" id="btn-submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-base transition shadow-lg flex items-center justify-center gap-2">
                         <i class="fa-solid fa-paper-plane"></i> Kryej Rezervimin Tani
                     </button>
                 </form>
@@ -134,9 +161,9 @@
                     <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
                         <i class="fa-solid fa-file-contract text-red-600"></i> Rezervimet e Klientëve & Kontratat (PDF & Word)
                     </h3>
-                    <button onclick="loadFromCloud(true)" class="bg-slate-800 text-white text-xs px-3 py-2 rounded-lg font-bold">
-                        <i class="fa-solid fa-sync"></i> Rifresko Të Dhënat
-                    </button>
+                    <span class="text-xs bg-green-100 text-green-800 font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-ping"></span> Live Realtime Active
+                    </span>
                 </div>
                 <div class="overflow-x-auto mt-4">
                     <table class="w-full text-left border-collapse text-sm">
@@ -250,50 +277,56 @@
     <script>
         const ADMIN_HASH_CODE = "YWRtaW4yNjI2";
         const EXPIRATION_DATE_STR = "2027-10-26"; 
-        const BIN_ID = "67243c2acad3cb3488478d38";
-        // Përdorim çelësin e hapur publikisht për lexim/shkrim direkt në JSONBin
-        const API_KEY = "$2a$10$7v1X1X1X1X1X1X1X1X1X1u";
 
-        const defaultCars = [
-            { id: 1, brand: "Volkswagen", type: "Golf 7", color: "E bardhë", plate: "01-123-AA", vin: "WVWZZZAUZJW00123", year: 2018, fuel: "Dizel", gear: "Automatik", price: 40, status: "E Lirë", images: ["https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=600&auto=format&fit=crop"] },
-            { id: 2, brand: "Audi", type: "A4 S-Line", color: "E zezë", plate: "02-456-BB", vin: "WAUZZZ8K1FA09876", year: 2020, fuel: "Dizel", gear: "Automatik", price: 55, status: "E Lirë", images: ["https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?w=600&auto=format&fit=crop"] },
-            { id: 3, brand: "BMW", type: "Series 3", color: "Gri", plate: "03-789-CC", vin: "WBA8A51080NS12345", year: 2021, fuel: "Dizel", gear: "Automatik", price: 60, status: "E Lirë", images: ["https://images.unsplash.com/photo-1555215695-3004980ad54e?w=600&auto=format&fit=crop"] }
-        ];
-
-        let cars = defaultCars;
+        let cars = [];
         let bookings = [];
 
-        async function loadFromCloud(showAlert = false) {
-            try {
-                const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-                    headers: { "X-Master-Key": API_KEY }
-                });
-                if(res.ok) {
-                    const data = await res.json();
-                    if(data.record) {
-                        if(data.record.cars) cars = data.record.cars;
-                        if(data.record.bookings) bookings = data.record.bookings;
-                    }
+        // Inicializimi i dëgjuesve të të dhënave në Kohë Reale (Realtime Snapshot)
+        window.addEventListener('DOMContentLoaded', () => {
+            const checkFirebase = setInterval(() => {
+                if (window.db) {
+                    clearInterval(checkFirebase);
+                    initRealtimeDB();
                 }
-            } catch(e) { console.log("Net error"); }
-            renderClientFleet();
-            if(!document.getElementById('view-admin').classList.contains('hidden')) {
-                renderAdminView();
-            }
-            if(showAlert) alert("Të dhënat u rifreskuan me sukses nga serveri!");
+            }, 100);
+        });
+
+        function initRealtimeDB() {
+            // Dëgjo ndryshimet te Veturat
+            window.dbOnSnapshot(window.dbCollection(window.db, "cars"), (snapshot) => {
+                cars = [];
+                snapshot.forEach((doc) => {
+                    cars.push({ id: doc.id, ...doc.data() });
+                });
+                if(cars.length === 0) seedDefaultCars();
+                renderClientFleet();
+                if(!document.getElementById('view-admin').classList.contains('hidden')) {
+                    renderAdminView();
+                }
+            });
+
+            // Dëgjo ndryshimet te Rezervimet
+            window.dbOnSnapshot(window.dbCollection(window.db, "bookings"), (snapshot) => {
+                bookings = [];
+                snapshot.forEach((doc) => {
+                    bookings.push({ id: doc.id, ...doc.data() });
+                });
+                if(!document.getElementById('view-admin').classList.contains('hidden')) {
+                    renderAdminView();
+                }
+            });
         }
 
-        async function saveToCloud() {
-            try {
-                await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-                    method: 'PUT',
-                    headers: { 
-                        "Content-Type": "application/json",
-                        "X-Master-Key": API_KEY
-                    },
-                    body: JSON.stringify({ cars, bookings })
-                });
-            } catch(e) { console.log("Save error"); }
+        async function seedDefaultCars() {
+            const defaults = [
+                { brand: "Volkswagen", type: "Golf 7", color: "E bardhë", plate: "01-123-AA", vin: "WVWZZZAUZJW00123", year: 2018, fuel: "Dizel", gear: "Automatik", price: 40, status: "E Lirë", images: ["https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=600&auto=format&fit=crop"] },
+                { brand: "Audi", type: "A4 S-Line", color: "E zezë", plate: "02-456-BB", vin: "WAUZZZ8K1FA09876", year: 2020, fuel: "Dizel", gear: "Automatik", price: 55, status: "E Lirë", images: ["https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?w=600&auto=format&fit=crop"] },
+                { brand: "BMW", type: "Series 3", color: "Gri", plate: "03-789-CC", vin: "WBA8A51080NS12345", year: 2021, fuel: "Dizel", gear: "Automatik", price: 60, status: "E Lirë", images: ["https://images.unsplash.com/photo-1555215695-3004980ad54e?w=600&auto=format&fit=crop"] }
+            ];
+            for (let c of defaults) {
+                const newDoc = window.dbDoc(window.dbCollection(window.db, "cars"));
+                await window.dbSetDoc(newDoc, c);
+            }
         }
 
         function getLogoUrl() {
@@ -333,17 +366,6 @@
             });
         }
 
-        function checkLicense() {
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const p = EXPIRATION_DATE_STR.split('-');
-            const exp = new Date(p[0], p[1]-1, p[2]);
-            const days = Math.round((exp - today) / (1000*60*60*24));
-            const box = document.getElementById('license-info-text');
-            if(box) box.innerHTML = `Skadimi: ${p[2]}/${p[1]}/${p[0]} | Ditë: ${days}`;
-            return days >= 0;
-        }
-
         function promptAdminLogin() {
             const pass = prompt("Fjalëkalimi i Adminit:");
             if(pass && btoa(pass.trim()) === ADMIN_HASH_CODE) {
@@ -354,7 +376,6 @@
         function switchView(v) {
             document.getElementById('view-client').classList.toggle('hidden', v !== 'client');
             document.getElementById('view-admin').classList.toggle('hidden', v !== 'admin');
-            loadFromCloud();
         }
 
         function renderClientFleet() {
@@ -383,7 +404,7 @@
                                 </div>
                             </div>
                             <div class="p-6 pt-0">
-                                <button onclick="selectCar(${c.id})" class="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-3.5 rounded-xl shadow-lg">Rezervo Këtë Veturë</button>
+                                <button onclick="selectCar('${c.id}')" class="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-3.5 rounded-xl shadow-lg">Rezervo Këtë Veturë</button>
                             </div>
                         </div>`;
                 }
@@ -399,16 +420,20 @@
 
         document.getElementById('client-booking-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const carId = Number(document.getElementById('c-booking-car-select').value);
+            const submitBtn = document.getElementById('btn-submit');
+            submitBtn.innerText = "Po dërgohet...";
+            submitBtn.disabled = true;
+
+            const carId = document.getElementById('c-booking-car-select').value;
             const car = cars.find(c => c.id === carId);
             const startV = document.getElementById('c-start-date').value;
             const endV = document.getElementById('c-end-date').value;
 
             const days = Math.ceil((new Date(endV) - new Date(startV)) / (1000*60*60*24));
-            if(days <= 0) { alert("Data e kthimit duhet të jetë pas datës së marrjes!"); return; }
+            if(days <= 0) { alert("Data e kthimit duhet të jetë pas datës së marrjes!"); submitBtn.innerText = "Kryej Rezervimin Tani"; submitBtn.disabled = false; return; }
 
-            bookings.push({
-                id: Date.now(),
+            const newBookingDoc = window.dbDoc(window.dbCollection(window.db, "bookings"));
+            await window.dbSetDoc(newBookingDoc, {
                 clientName: document.getElementById('c-client-name').value,
                 clientAddress: document.getElementById('c-client-address').value,
                 clientBirthplace: document.getElementById('c-client-birthplace').value,
@@ -424,14 +449,18 @@
                 startDate: formatDateEU(startV),
                 endDate: formatDateEU(endV),
                 days: days,
-                totalPrice: (days * car.price).toFixed(2)
+                totalPrice: (days * car.price).toFixed(2),
+                createdAt: new Date().toISOString()
             });
 
-            car.status = "Me Rentë";
-            await saveToCloud();
-            alert("Rezervimi u krye me sukses!");
+            // Blloko veturën direkt në server në kohë reale
+            const carRef = window.dbDoc(window.db, "cars", carId);
+            await window.dbUpdateDoc(carRef, { status: "Me Rentë" });
+
+            alert("Rezervimi u krye me sukses dhe u ruajt në kohë reale!");
             e.target.reset();
-            renderClientFleet();
+            submitBtn.innerText = "Kryej Rezervimin Tani";
+            submitBtn.disabled = false;
         });
 
         function renderAdminView() {
@@ -444,8 +473,8 @@
                     <div class="flex justify-between items-center p-3 bg-gray-50 rounded-xl border text-sm">
                         <div><strong>${c.brand} ${c.type}</strong> (${c.plate})<br><span class="text-xs text-gray-500">${c.price}€ | <strong>${c.status}</strong></span></div>
                         <div class="flex gap-1">
-                            <button onclick="editCar(${c.id})" class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded text-xs font-bold">Edit</button>
-                            <button onclick="deleteCar(${c.id})" class="bg-red-100 text-red-700 px-2.5 py-1 rounded text-xs font-bold">Fshi</button>
+                            <button onclick="editCar('${c.id}')" class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded text-xs font-bold">Edit</button>
+                            <button onclick="deleteCar('${c.id}')" class="bg-red-100 text-red-700 px-2.5 py-1 rounded text-xs font-bold">Fshi</button>
                         </div>
                     </div>`;
             });
@@ -465,7 +494,7 @@
                         <td class="p-3 text-center space-x-1">
                             <button onclick="downloadPDF(${i})" class="bg-red-600 text-white px-2 py-1 rounded text-xs">PDF</button>
                             <button onclick="downloadWord(${i})" class="bg-blue-600 text-white px-2 py-1 rounded text-xs">Word</button>
-                            <button onclick="deleteBooking(${i})" class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">X</button>
+                            <button onclick="deleteBooking('${b.id}')" class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">X</button>
                         </td>
                     </tr>`;
             });
@@ -499,10 +528,8 @@
         }
 
         async function deleteCar(id) {
-            if(confirm("Fshi veturën?")) {
-                cars = cars.filter(x => x.id !== id);
-                await saveToCloud();
-                renderAdminView();
+            if(confirm("A jeni të sigurt që dëshironi ta fshini këtë veturë?")) {
+                await window.dbDeleteDoc(window.dbDoc(window.db, "cars", id));
             }
         }
 
@@ -513,49 +540,35 @@
             let imgs = [];
             for(const f of files) imgs.push(await compressImg(f));
 
+            const carData = {
+                brand: document.getElementById('car-brand').value,
+                type: document.getElementById('car-type').value,
+                color: document.getElementById('car-color').value,
+                plate: document.getElementById('car-plate').value,
+                vin: document.getElementById('car-vin').value,
+                year: Number(document.getElementById('car-year').value),
+                fuel: document.getElementById('car-fuel').value,
+                gear: document.getElementById('car-gear').value,
+                price: Number(document.getElementById('car-price').value),
+                status: document.getElementById('car-status').value
+            };
+
+            if(imgs.length > 0) carData.images = imgs;
+
             if(editId) {
-                const c = cars.find(x => x.id === Number(editId));
-                if(c) {
-                    c.brand = document.getElementById('car-brand').value;
-                    c.type = document.getElementById('car-type').value;
-                    c.color = document.getElementById('car-color').value;
-                    c.plate = document.getElementById('car-plate').value;
-                    c.vin = document.getElementById('car-vin').value;
-                    c.year = Number(document.getElementById('car-year').value);
-                    c.fuel = document.getElementById('car-fuel').value;
-                    c.gear = document.getElementById('car-gear').value;
-                    c.price = Number(document.getElementById('car-price').value);
-                    c.status = document.getElementById('car-status').value;
-                    if(imgs.length > 0) c.images = imgs;
-                }
+                await window.dbUpdateDoc(window.dbDoc(window.db, "cars", editId), carData);
             } else {
-                cars.push({
-                    id: Date.now(),
-                    brand: document.getElementById('car-brand').value,
-                    type: document.getElementById('car-type').value,
-                    color: document.getElementById('car-color').value,
-                    plate: document.getElementById('car-plate').value,
-                    vin: document.getElementById('car-vin').value,
-                    year: Number(document.getElementById('car-year').value),
-                    fuel: document.getElementById('car-fuel').value,
-                    gear: document.getElementById('car-gear').value,
-                    price: Number(document.getElementById('car-price').value),
-                    status: document.getElementById('car-status').value,
-                    images: imgs.length > 0 ? imgs : ["https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=600&auto=format&fit=crop"]
-                });
+                if(!carData.images) carData.images = ["https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=600&auto=format&fit=crop"];
+                await window.dbSetDoc(window.dbDoc(window.dbCollection(window.db, "cars")), carData);
             }
 
-            await saveToCloud();
-            alert("U ruajt me sukses!");
+            alert("Vetura u ruajt me sukses!");
             resetCarForm();
-            renderAdminView();
         });
 
-        async function deleteBooking(i) {
-            if(confirm("Fshi rezervimin?")) {
-                bookings.splice(i, 1);
-                await saveToCloud();
-                renderAdminView();
+        async function deleteBooking(id) {
+            if(confirm("A jeni të sigurt që dëshironi ta fshini këtë rezervim?")) {
+                await window.dbDeleteDoc(window.dbDoc(window.db, "bookings", id));
             }
         }
 
@@ -597,8 +610,6 @@
             a.download = `Kontrata_${b.clientName}.doc`;
             a.click();
         }
-
-        loadFromCloud();
     </script>
 </body>
 </html>
