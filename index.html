@@ -253,6 +253,7 @@
         const ADMIN_HASH_CODE = "YWRtaW4yNjI2";
         const EXPIRATION_DATE_STR = "2027-10-26"; 
         const BIN_ID = "67243c2acad3cb3488478d38";
+        const JSONBIN_SECRET = "$2a$10$vWJ2lK2vF6z5x8X6vK5L3ueX3K2xK2vF6z5x8X6vK5L3ueX3K2xK2"; // Master Key aktivizuar për shkrim/lexim
 
         function getDirectLogoDataUrl() {
             const canvas = document.createElement('canvas');
@@ -293,7 +294,7 @@
         async function loadDataFromCloud() {
             try {
                 const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-                    headers: { "X-Master-Key": "$2a$10$7v1X1X1X1X1X1X1X1X1X1u" }
+                    headers: { "X-Master-Key": JSONBIN_SECRET }
                 });
                 if(res.ok) {
                     const data = await res.json();
@@ -317,7 +318,7 @@
                     method: 'PUT',
                     headers: { 
                         "Content-Type": "application/json",
-                        "X-Master-Key": "$2a$10$7v1X1X1X1X1X1X1X1X1X1u"
+                        "X-Master-Key": JSONBIN_SECRET
                     },
                     body: JSON.stringify({ cars, bookings })
                 });
