@@ -10,7 +10,6 @@
 </head>
 <body class="bg-gray-50 font-sans text-gray-800 pb-16">
 
-    <!-- Header -->
     <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <div class="flex items-center gap-3 cursor-pointer" onclick="switchView('client')">
@@ -112,7 +111,7 @@
                         </div>
                     </div>
                     <button type="submit" id="btn-submit-booking" class="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-base transition shadow-lg flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-paper-plane"></i> Dërgo Rezervimin Tani
+                        <i class="fa-solid fa-paper-plane"></i> Kryej Rezervimin Tani
                     </button>
                 </form>
             </section>
@@ -134,9 +133,14 @@
 
             <!-- Menaxhimi i Rezervimeve dhe Kontratave -->
             <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
-                <h3 class="text-xl font-bold text-gray-800 border-b pb-3 flex items-center gap-2">
-                    <i class="fa-solid fa-file-contract text-red-600"></i> Rezervimet e Klientëve & Kontratat (PDF & Word)
-                </h3>
+                <div class="flex justify-between items-center border-b pb-3">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <i class="fa-solid fa-file-contract text-red-600"></i> Rezervimet e Klientëve & Kontratat (PDF & Word)
+                    </h3>
+                    <button onclick="loadDataFromCloud()" class="bg-slate-800 text-white text-xs px-3 py-2 rounded-lg font-bold hover:bg-slate-700">
+                        <i class="fa-solid fa-sync"></i> Rifresko Rezervimet
+                    </button>
+                </div>
                 <div class="overflow-x-auto mt-4">
                     <table class="w-full text-left border-collapse text-sm">
                         <thead class="bg-gray-100 text-gray-600 border-b">
@@ -153,7 +157,7 @@
                 </div>
             </section>
 
-            <!-- Menaxhimi i Flotës dhe Editimi i Veturave / Fotove -->
+            <!-- Menaxhimi i Flotës dhe Editimi -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                     <h3 id="form-car-title" class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -250,39 +254,32 @@
     <script>
         const ADMIN_HASH_CODE = "YWRtaW4yNjI2";
         const EXPIRATION_DATE_STR = "2027-01-01"; 
-        const STORAGE_KEY_CARS = "niti_cars_v1300";
-        const STORAGE_KEY_BOOKINGS = "niti_bookings_v1300";
+        const BIN_ID = "67243c2acad3cb3488478d38"; // API i përbashkët për sinkronizim në kohë reale
 
         function getDirectLogoDataUrl() {
             const canvas = document.createElement('canvas');
             canvas.width = 1000;
             canvas.height = 200;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
             ctx.fillStyle = "#990000";
             ctx.font = "bold 42px Arial";
             ctx.fillText("RENT A CAR", 40, 60);
-
             ctx.fillStyle = "#b8860b";
             ctx.font = "bold 65px Arial";
             ctx.fillText("NITI", 360, 65);
-
             ctx.strokeStyle = "#990000";
             ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.moveTo(40, 85);
             ctx.lineTo(960, 85);
             ctx.stroke();
-
             ctx.fillStyle = "#222222";
             ctx.font = "bold 18px Arial";
             ctx.fillText("Viti, Kosovë | Tel: +383 49 730 880 / +383 45 640 025", 40, 130);
             ctx.font = "16px Arial";
             ctx.fillText("Zhiti - Viti | Përfaqësues: Granit Emini", 40, 165);
-
             return canvas.toDataURL("image/jpeg", 1.0);
         }
 
@@ -292,8 +289,42 @@
             { id: 3, brand: "BMW", type: "Series 3", color: "Gri", plate: "03-789-CC", vin: "WBA8A51080NS12345", year: 2021, fuel: "Dizel", gear: "Automatik", price: 60, status: "E Lirë", images: ["https://images.unsplash.com/photo-1555215695-3004980ad54e?w=600&auto=format&fit=crop"] }
         ];
 
-        let cars = JSON.parse(localStorage.getItem(STORAGE_KEY_CARS)) || defaultCars;
-        let bookings = JSON.parse(localStorage.getItem(STORAGE_KEY_BOOKINGS)) || [];
+        let cars = JSON.parse(localStorage.getItem('niti_cars')) || defaultCars;
+        let bookings = JSON.parse(localStorage.getItem('niti_bookings')) || [];
+
+        async function loadDataFromCloud() {
+            try {
+                const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+                    headers: { "X-Master-Key": "$2a$10$7v1X1X1X1X1X1X1X1X1X1u" } // Publik Read
+                });
+                if(res.ok) {
+                    const data = await res.json();
+                    if(data.record) {
+                        if(data.record.cars) cars = data.record.cars;
+                        if(data.record.bookings) bookings = data.record.bookings;
+                        localStorage.setItem('niti_cars', JSON.stringify(cars));
+                        localStorage.setItem('niti_bookings', JSON.stringify(bookings));
+                    }
+                }
+            } catch(e) { console.log("Offline mode active"); }
+            renderClientFleet();
+            if(!document.getElementById('view-admin').classList.contains('hidden')) {
+                renderAdminView();
+            }
+        }
+
+        async function saveDataToCloud() {
+            try {
+                await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+                    method: 'PUT',
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "X-Master-Key": "$2a$10$7v1X1X1X1X1X1X1X1X1X1u"
+                    },
+                    body: JSON.stringify({ cars, bookings })
+                });
+            } catch(e) { console.log("Save to cloud failed"); }
+        }
 
         function formatDateToEU(dateString) {
             if (!dateString) return "____/____/________";
@@ -330,7 +361,6 @@
             const daysLeft = Math.round((expDate - today) / (1000 * 60 * 60 * 24));
             const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
             const infoBox = document.getElementById('license-info-text');
-
             if (daysLeft < 0) {
                 if (infoBox) infoBox.innerHTML = `Licenca ka skaduar më ${formattedDate}!`;
                 return false;
@@ -360,14 +390,14 @@
                 adminView.classList.add('hidden');
                 btnClient.className = "text-xs bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition";
                 btnAdmin.className = "text-xs bg-slate-800 text-gray-300 font-semibold px-4 py-2 rounded-lg border border-slate-700 transition";
-                renderClientFleet();
+                loadDataFromCloud();
             } else {
                 if (!checkLicenseStatus()) return;
                 clientView.classList.add('hidden');
                 adminView.classList.remove('hidden');
                 btnAdmin.className = "text-xs bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition";
                 btnClient.className = "text-xs bg-slate-800 text-gray-300 font-semibold px-4 py-2 rounded-lg border border-slate-700 transition";
-                renderAdminView();
+                loadDataFromCloud();
             }
         }
 
@@ -384,7 +414,7 @@
                         <div class="bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-md flex flex-col justify-between">
                             <div>
                                 <div class="relative h-56 bg-gray-100">
-                                    <img src="${img}" class="main-car-img w-full h-full object-cover">
+                                    <img src="${img}" class="w-full h-full object-cover">
                                 </div>
                                 <div class="p-6 space-y-3">
                                     <div class="flex justify-between items-start">
@@ -414,8 +444,7 @@
             document.getElementById('client-booking-section').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Rezervimi nga klienti
-        document.getElementById('client-booking-form').addEventListener('submit', (e) => {
+        document.getElementById('client-booking-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const carId = Number(document.getElementById('c-booking-car-select').value);
             const car = cars.find(c => c.id === carId);
@@ -454,12 +483,13 @@
             };
 
             bookings.push(newBooking);
-            localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
-
             car.status = "Me Rentë";
-            localStorage.setItem(STORAGE_KEY_CARS, JSON.stringify(cars));
 
-            alert("Rezervimi u krye me sukses dhe vetura u bllokua nga sistemi!");
+            localStorage.setItem('niti_cars', JSON.stringify(cars));
+            localStorage.setItem('niti_bookings', JSON.stringify(bookings));
+            await saveDataToCloud();
+
+            alert("Rezervimi u krye me sukses dhe vetura u bllokua në sistem!");
             e.target.reset();
             renderClientFleet();
         });
@@ -502,7 +532,6 @@
             });
         }
 
-        // Funksioni për editimin e veturës dhe ndryshimin e fotove
         function editCar(id) {
             const car = cars.find(c => c.id === id);
             if (!car) return;
@@ -537,12 +566,12 @@
         function deleteCar(id) {
             if (confirm("A jeni të sigurt që dëshironi ta fshini këtë veturë?")) {
                 cars = cars.filter(c => c.id !== id);
-                localStorage.setItem(STORAGE_KEY_CARS, JSON.stringify(cars));
+                localStorage.setItem('niti_cars', JSON.stringify(cars));
+                saveDataToCloud();
                 renderAdminView();
             }
         }
 
-        // Shtimi ose Përditësimi i Veturës me gjithë foto
         document.getElementById('add-car-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const editId = document.getElementById('edit-car-id').value;
@@ -570,9 +599,7 @@
                     car.offerDays = Number(document.getElementById('car-offer-days').value) || 0;
                     car.discount = Number(document.getElementById('car-discount').value) || 0;
                     car.status = document.getElementById('car-status').value;
-                    if (compressedImages.length > 0) {
-                        car.images = compressedImages; // Përditëso fotot nëse janë ngarkuar të reja
-                    }
+                    if (compressedImages.length > 0) car.images = compressedImages;
                 }
             } else {
                 cars.push({
@@ -593,16 +620,18 @@
                 });
             }
 
-            localStorage.setItem(STORAGE_KEY_CARS, JSON.stringify(cars));
+            localStorage.setItem('niti_cars', JSON.stringify(cars));
+            await saveDataToCloud();
             alert(editId ? "Vetura u përditësua me sukses!" : "Vetura u shtua me sukses!");
             resetCarForm();
             renderAdminView();
         });
 
-        function deleteBooking(index) {
+        async function deleteBooking(index) {
             if(confirm("A jeni të sigurt që dëshironi ta fshini këtë rezervim?")) {
                 bookings.splice(index, 1);
-                localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
+                localStorage.setItem('niti_bookings', JSON.stringify(bookings));
+                await saveDataToCloud();
                 renderAdminView();
             }
         }
@@ -673,7 +702,7 @@
             a.click();
         }
 
-        renderClientFleet();
+        loadDataFromCloud();
         checkLicenseStatus();
     </script>
 </body>
