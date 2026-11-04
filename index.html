@@ -46,7 +46,7 @@
             <section class="space-y-6">
                 <div class="flex justify-between items-center">
                     <h3 class="text-2xl font-bold text-gray-900">Veturat e Lira për Rezervim</h3>
-                    <span id="client-car-count" class="text-xs font-bold bg-red-100 text-red-800 px-3 py-1 rounded-full">0 Vetura</span>
+                    <span id="client-car-count" class="text-xs font-bold bg-red-100 text-red-800 px-3 py-1 rounded-full">Duke ngarkuar...</span>
                 </div>
                 <div id="client-fleet-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
             </section>
@@ -123,9 +123,14 @@
                 <div>
                     <h2 class="text-2xl font-bold">Paneli i Adminit - Rent a Car Niti</h2>
                 </div>
-                <button onclick="switchView('client')" class="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded-lg font-semibold">
-                    <i class="fa-solid fa-right-from-bracket"></i> Dil
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="loadDataFromCloud()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-lg font-semibold">
+                        <i class="fa-solid fa-rotate"></i> Rifresko
+                    </button>
+                    <button onclick="switchView('client')" class="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded-lg font-semibold">
+                        <i class="fa-solid fa-right-from-bracket"></i> Dil
+                    </button>
+                </div>
             </div>
 
             <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
@@ -245,15 +250,47 @@
 
     <script>
         const ADMIN_HASH_CODE = "YWRtaW4yNjI2";
-        let cars = JSON.parse(localStorage.getItem('niti_cars')) || [
+        const BIN_ID = "672901c5ad19ca34f8c4ee0f"; 
+        const API_KEY = "$2a$10$7R6O6.4.i1e4mI.K7S8iO.5C9C3k9U7S8iO";
+
+        let cars = [
             { id: 1, brand: "Volkswagen", type: "Golf 7", color: "E bardhë", plate: "01-123-AA", vin: "WVWZZZAUZJW00123", year: 2018, fuel: "Dizel", gear: "Automatik", price: 40, status: "E Lirë", images: ["https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=600&auto=format&fit=crop"] },
             { id: 2, brand: "Audi", type: "A4 S-Line", color: "E zezë", plate: "02-456-BB", vin: "WAUZZZ8K1FA09876", year: 2020, fuel: "Dizel", gear: "Automatik", price: 55, status: "E Lirë", images: ["https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?w=600&auto=format&fit=crop"] }
         ];
-        let bookings = JSON.parse(localStorage.getItem('niti_bookings')) || [];
+        let bookings = [];
 
-        function saveData() {
-            localStorage.setItem('niti_cars', JSON.stringify(cars));
-            localStorage.setItem('niti_bookings', JSON.stringify(bookings));
+        async function loadDataFromCloud() {
+            try {
+                const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+                    headers: { 'X-Master-Key': API_KEY }
+                });
+                if(res.ok) {
+                    const data = await res.json();
+                    if(data.record.cars) cars = data.record.cars;
+                    if(data.record.bookings) bookings = data.record.bookings;
+                }
+            } catch(e) {
+                console.log("Duke përdorur kujtesën lokale.");
+            }
+            renderClientFleet();
+            if(!document.getElementById('view-admin').classList.contains('hidden')) {
+                renderAdminView();
+            }
+        }
+
+        async function saveDataToCloud() {
+            try {
+                await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': API_KEY
+                    },
+                    body: JSON.stringify({ cars, bookings })
+                });
+            } catch(e) {
+                console.error("Gabim në ruajtje.");
+            }
         }
 
         function getLogoUrl() {
@@ -303,8 +340,7 @@
         function switchView(v) {
             document.getElementById('view-client').classList.toggle('hidden', v !== 'client');
             document.getElementById('view-admin').classList.toggle('hidden', v !== 'admin');
-            renderClientFleet();
-            if(v === 'admin') renderAdminView();
+            loadDataFromCloud();
         }
 
         function renderClientFleet() {
@@ -336,10 +372,11 @@
                                 <button onclick="selectCar(${c.id})" class="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-3.5 rounded-xl shadow-lg">Rezervo Këtë Veturë</button>
                             </div>
                         </div>`;
+                    sel.innerHTML += `<option value="${c.id}">${c.brand} ${c.type} (${c.plate}) - ${c.price}€/ditë</option>`;
                 }
-                sel.innerHTML += `<option value="${c.id}">${c.brand} ${c.type} (${c.plate}) - ${c.price}€/ditë</option>`;
             });
-            document.getElementById('client-car-count').innerText = `${cars.filter(c => c.status === 'E Lirë').length} Vetura të lira`;
+            const freeCount = cars.filter(c => c.status === 'E Lirë').length;
+            document.getElementById('client-car-count').innerText = `${freeCount} Vetura të lira`;
         }
 
         function selectCar(id) {
@@ -347,15 +384,31 @@
             document.getElementById('client-booking-section').scrollIntoView({ behavior: 'smooth' });
         }
 
-        document.getElementById('client-booking-form').addEventListener('submit', (e) => {
+        document.getElementById('client-booking-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Duke u dërguar...';
+            btn.disabled = true;
+
             const carId = Number(document.getElementById('c-booking-car-select').value);
             const car = cars.find(c => c.id === carId);
+            if(!car) { 
+                alert("Zgjidhni një veturë të vlefshme!"); 
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Kryej Rezervimin Tani';
+                btn.disabled = false;
+                return; 
+            }
+
             const startV = document.getElementById('c-start-date').value;
             const endV = document.getElementById('c-end-date').value;
-
             const days = Math.ceil((new Date(endV) - new Date(startV)) / (1000*60*60*24));
-            if(days <= 0) { alert("Data e kthimit duhet të jetë pas datës së marrjes!"); return; }
+            
+            if(days <= 0) { 
+                alert("Data e kthimit duhet të jetë pas datës së marrjes!"); 
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Kryej Rezervimin Tani';
+                btn.disabled = false;
+                return; 
+            }
 
             bookings.push({
                 id: Date.now(),
@@ -378,10 +431,13 @@
             });
 
             car.status = "Me Rentë";
-            saveData();
+            await saveDataToCloud();
+            
             alert("Rezervimi u krye me sukses!");
             e.target.reset();
-            renderClientFleet();
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Kryej Rezervimin Tani';
+            btn.disabled = false;
+            loadDataFromCloud();
         });
 
         function renderAdminView() {
@@ -448,11 +504,11 @@
             document.getElementById('btn-cancel-edit').classList.add('hidden');
         }
 
-        function deleteCar(id) {
+        async function deleteCar(id) {
             if(confirm("Fshi veturën?")) {
                 cars = cars.filter(x => x.id !== id);
-                saveData();
-                renderAdminView();
+                await saveDataToCloud();
+                loadDataFromCloud();
             }
         }
 
@@ -495,17 +551,21 @@
                 });
             }
 
-            saveData();
+            await saveDataToCloud();
             alert("U ruajt me sukses!");
             resetCarForm();
-            renderAdminView();
+            loadDataFromCloud();
         });
 
-        function deleteBooking(i) {
-            if(confirm("Fshi rezervimin?")) {
+        async function deleteBooking(i) {
+            if(confirm("Fshi rezervimin dhe kthe veturën përsëri të lirë?")) {
+                const b = bookings[i];
+                const c = cars.find(x => x.plate === b.carPlate);
+                if(c) c.status = "E Lirë";
+                
                 bookings.splice(i, 1);
-                saveData();
-                renderAdminView();
+                await saveDataToCloud();
+                loadDataFromCloud();
             }
         }
 
@@ -548,7 +608,7 @@
             a.click();
         }
 
-        renderClientFleet();
+        loadDataFromCloud();
     </script>
 </body>
 </html>
