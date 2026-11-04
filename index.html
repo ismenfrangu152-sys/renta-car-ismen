@@ -122,7 +122,6 @@
             <div class="bg-slate-800 text-white p-6 rounded-2xl flex justify-between items-center">
                 <div>
                     <h2 class="text-2xl font-bold">Paneli i Adminit - Rent a Car Niti</h2>
-                    <p id="license-info-text" class="text-sm text-amber-400 font-semibold mt-1"></p>
                 </div>
                 <button onclick="switchView('client')" class="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded-lg font-semibold">
                     <i class="fa-solid fa-right-from-bracket"></i> Dil
@@ -134,9 +133,6 @@
                     <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
                         <i class="fa-solid fa-file-contract text-red-600"></i> Rezervimet e Klientëve & Kontratat (PDF & Word)
                     </h3>
-                    <button onclick="fetchOnlineData(true)" class="bg-slate-800 text-white text-xs px-3 py-2 rounded-lg font-bold">
-                        <i class="fa-solid fa-sync"></i> Rifresko Të Dhënat
-                    </button>
                 </div>
                 <div class="overflow-x-auto mt-4">
                     <table class="w-full text-left border-collapse text-sm">
@@ -249,60 +245,52 @@
 
     <script>
         const ADMIN_HASH_CODE = "YWRtaW4yNjI2";
-        // Përdorim endpoint-in publik të hapur pa CORS bllokim
-        const ENDPOINT = "https://api.myjson.online/v1/records/4b3c7b2a-1234-4567-890a-rentacarniti";
-
-        const defaultCars = [
+        let cars = JSON.parse(localStorage.getItem('niti_cars')) || [
             { id: 1, brand: "Volkswagen", type: "Golf 7", color: "E bardhë", plate: "01-123-AA", vin: "WVWZZZAUZJW00123", year: 2018, fuel: "Dizel", gear: "Automatik", price: 40, status: "E Lirë", images: ["https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=600&auto=format&fit=crop"] },
-            { id: 2, brand: "Audi", type: "A4 S-Line", color: "E zezë", plate: "02-456-BB", vin: "WAUZZZ8K1FA09876", year: 2020, fuel: "Dizel", gear: "Automatik", price: 55, status: "E Lirë", images: ["https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?w=600&auto=format&fit=crop"] },
-            { id: 3, brand: "BMW", type: "Series 3", color: "Gri", plate: "03-789-CC", vin: "WBA8A51080NS12345", year: 2021, fuel: "Dizel", gear: "Automatik", price: 60, status: "E Lirë", images: ["https://images.unsplash.com/photo-1555215695-3004980ad54e?w=600&auto=format&fit=crop"] }
+            { id: 2, brand: "Audi", type: "A4 S-Line", color: "E zezë", plate: "02-456-BB", vin: "WAUZZZ8K1FA09876", year: 2020, fuel: "Dizel", gear: "Automatik", price: 55, status: "E Lirë", images: ["https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?w=600&auto=format&fit=crop"] }
         ];
+        let bookings = JSON.parse(localStorage.getItem('niti_bookings')) || [];
 
-        let cars = defaultCars;
-        let bookings = [];
-
-        async function fetchOnlineData(showAlert = false) {
-            try {
-                const res = await fetch("https://api.jsonbin.io/v3/b/67243c2acad3cb3488478d38/latest");
-                if(res.ok) {
-                    const data = await res.json();
-                    if(data.record) {
-                        if(data.record.cars) cars = data.record.cars;
-                        if(data.record.bookings) bookings = data.record.bookings;
-                    }
-                }
-            } catch(e) { console.log("Lidhja offline me kujtesë"); }
-            
-            // Backup ruajtje që rezervimi të mos humbasë kurrë në telefon
-            const localB = localStorage.getItem('niti_b_backup');
-            if(localB) {
-                const parsed = JSON.parse(localB);
-                parsed.forEach(b => {
-                    if(!bookings.find(x => x.id === b.id)) bookings.push(b);
-                });
-            }
-
-            renderClientFleet();
-            if(!document.getElementById('view-admin').classList.contains('hidden')) {
-                renderAdminView();
-            }
-            if(showAlert) alert("Rezervimet u rifreskuan me sukses!");
+        function saveData() {
+            localStorage.setItem('niti_cars', JSON.stringify(cars));
+            localStorage.setItem('niti_bookings', JSON.stringify(bookings));
         }
 
-        async function pushOnlineData() {
-            try {
-                await fetch("https://api.jsonbin.io/v3/b/67243c2acad3cb3488478d38", {
-                    method: 'PUT',
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ cars, bookings })
-                });
-            } catch(e) {}
+        function getLogoUrl() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1000; canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, 1000, 200);
+            ctx.fillStyle = "#990000"; ctx.font = "bold 42px Arial"; ctx.fillText("RENT A CAR", 40, 60);
+            ctx.fillStyle = "#b8860b"; ctx.font = "bold 65px Arial"; ctx.fillText("NITI", 360, 65);
+            ctx.fillStyle = "#222222"; ctx.font = "bold 18px Arial"; ctx.fillText("Viti, Kosovë | Tel: +383 49 730 880", 40, 130);
+            return canvas.toDataURL("image/jpeg", 1.0);
         }
 
         function formatDateEU(d) {
             if(!d) return "";
             const p = d.split('-');
             return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+        }
+
+        function compressImg(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let w = img.width, h = img.height;
+                        if(w > 800) { h = Math.round((h * 800) / w); w = 800; }
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', 0.6));
+                    };
+                };
+            });
         }
 
         function promptAdminLogin() {
@@ -315,7 +303,8 @@
         function switchView(v) {
             document.getElementById('view-client').classList.toggle('hidden', v !== 'client');
             document.getElementById('view-admin').classList.toggle('hidden', v !== 'admin');
-            fetchOnlineData();
+            renderClientFleet();
+            if(v === 'admin') renderAdminView();
         }
 
         function renderClientFleet() {
@@ -358,26 +347,17 @@
             document.getElementById('client-booking-section').scrollIntoView({ behavior: 'smooth' });
         }
 
-        document.getElementById('client-booking-form').addEventListener('submit', async (e) => {
+        document.getElementById('client-booking-form').addEventListener('submit', (e) => {
             e.preventDefault();
-            const btn = document.getElementById('btn-submit');
-            btn.innerText = "Po kryhet...";
-            btn.disabled = true;
-
             const carId = Number(document.getElementById('c-booking-car-select').value);
             const car = cars.find(c => c.id === carId);
             const startV = document.getElementById('c-start-date').value;
             const endV = document.getElementById('c-end-date').value;
 
             const days = Math.ceil((new Date(endV) - new Date(startV)) / (1000*60*60*24));
-            if(days <= 0) { 
-                alert("Data e kthimit duhet të jetë pas datës së marrjes!"); 
-                btn.innerText = "Kryej Rezervimin Tani"; 
-                btn.disabled = false; 
-                return; 
-            }
+            if(days <= 0) { alert("Data e kthimit duhet të jetë pas datës së marrjes!"); return; }
 
-            const newB = {
+            bookings.push({
                 id: Date.now(),
                 clientName: document.getElementById('c-client-name').value,
                 clientAddress: document.getElementById('c-client-address').value,
@@ -395,19 +375,12 @@
                 endDate: formatDateEU(endV),
                 days: days,
                 totalPrice: (days * car.price).toFixed(2)
-            };
+            });
 
-            bookings.push(newB);
             car.status = "Me Rentë";
-
-            // Ruaje në dy vende njëkohësisht (server + backup) që të mos humbë kurrë
-            localStorage.setItem('niti_b_backup', JSON.stringify(bookings));
-            await pushOnlineData();
-
-            alert("Rezervimi u krye me sukses dhe vetura u bllokua!");
+            saveData();
+            alert("Rezervimi u krye me sukses!");
             e.target.reset();
-            btn.innerText = "Kryej Rezervimin Tani";
-            btn.disabled = false;
             renderClientFleet();
         });
 
@@ -440,22 +413,142 @@
                         <td class="p-3 text-xs">${b.startDate} - ${b.endDate} (${b.days} ditë)</td>
                         <td class="p-3 font-bold text-red-600">${b.totalPrice} €</td>
                         <td class="p-3 text-center space-x-1">
-                            <button onclick="deleteBooking(${i})" class="bg-gray-200 hover:bg-red-100 text-gray-700 hover:text-red-600 px-2.5 py-1.5 rounded text-xs font-bold">Fshi</button>
+                            <button onclick="downloadPDF(${i})" class="bg-red-600 text-white px-2 py-1 rounded text-xs">PDF</button>
+                            <button onclick="downloadWord(${i})" class="bg-blue-600 text-white px-2 py-1 rounded text-xs">Word</button>
+                            <button onclick="deleteBooking(${i})" class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">X</button>
                         </td>
                     </tr>`;
             });
         }
 
-        async function deleteBooking(i) {
-            if(confirm("Fshi këtë rezervim?")) {
-                bookings.splice(i, 1);
-                localStorage.setItem('niti_b_backup', JSON.stringify(bookings));
-                await pushOnlineData();
+        function editCar(id) {
+            const c = cars.find(x => x.id === id);
+            if(!c) return;
+            document.getElementById('edit-car-id').value = c.id;
+            document.getElementById('car-brand').value = c.brand;
+            document.getElementById('car-type').value = c.type;
+            document.getElementById('car-color').value = c.color;
+            document.getElementById('car-plate').value = c.plate;
+            document.getElementById('car-vin').value = c.vin;
+            document.getElementById('car-year').value = c.year;
+            document.getElementById('car-fuel').value = c.fuel;
+            document.getElementById('car-gear').value = c.gear;
+            document.getElementById('car-price').value = c.price;
+            document.getElementById('car-status').value = c.status;
+            document.getElementById('form-car-title').innerText = "Editim Veturë";
+            document.getElementById('btn-save-car').innerText = "Përditëso";
+            document.getElementById('btn-cancel-edit').classList.remove('hidden');
+        }
+
+        function resetCarForm() {
+            document.getElementById('edit-car-id').value = '';
+            document.getElementById('add-car-form').reset();
+            document.getElementById('form-car-title').innerText = "Shto / Ndrysho Veturë";
+            document.getElementById('btn-save-car').innerText = "Ruaj Veturën";
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+        }
+
+        function deleteCar(id) {
+            if(confirm("Fshi veturën?")) {
+                cars = cars.filter(x => x.id !== id);
+                saveData();
                 renderAdminView();
             }
         }
 
-        fetchOnlineData();
+        document.getElementById('add-car-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('edit-car-id').value;
+            const files = Array.from(document.getElementById('car-images-files').files);
+            let imgs = [];
+            for(const f of files) imgs.push(await compressImg(f));
+
+            if(editId) {
+                const c = cars.find(x => x.id === Number(editId));
+                if(c) {
+                    c.brand = document.getElementById('car-brand').value;
+                    c.type = document.getElementById('car-type').value;
+                    c.color = document.getElementById('car-color').value;
+                    c.plate = document.getElementById('car-plate').value;
+                    c.vin = document.getElementById('car-vin').value;
+                    c.year = Number(document.getElementById('car-year').value);
+                    c.fuel = document.getElementById('car-fuel').value;
+                    c.gear = document.getElementById('car-gear').value;
+                    c.price = Number(document.getElementById('car-price').value);
+                    c.status = document.getElementById('car-status').value;
+                    if(imgs.length > 0) c.images = imgs;
+                }
+            } else {
+                cars.push({
+                    id: Date.now(),
+                    brand: document.getElementById('car-brand').value,
+                    type: document.getElementById('car-type').value,
+                    color: document.getElementById('car-color').value,
+                    plate: document.getElementById('car-plate').value,
+                    vin: document.getElementById('car-vin').value,
+                    year: Number(document.getElementById('car-year').value),
+                    fuel: document.getElementById('car-fuel').value,
+                    gear: document.getElementById('car-gear').value,
+                    price: Number(document.getElementById('car-price').value),
+                    status: document.getElementById('car-status').value,
+                    images: imgs.length > 0 ? imgs : ["https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=600&auto=format&fit=crop"]
+                });
+            }
+
+            saveData();
+            alert("U ruajt me sukses!");
+            resetCarForm();
+            renderAdminView();
+        });
+
+        function deleteBooking(i) {
+            if(confirm("Fshi rezervimin?")) {
+                bookings.splice(i, 1);
+                saveData();
+                renderAdminView();
+            }
+        }
+
+        function downloadPDF(i) {
+            const b = bookings[i];
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            doc.addImage(getLogoUrl(), 'JPEG', 15, 10, 180, 32);
+            doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+            doc.text("KONTRATË PËR DHËNIEN E VETURËS ME QERA", 105, 48, { align: "center" });
+            doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+            let y = 58;
+            const p = (t) => { doc.text(t, 15, y, { maxWidth: 180 }); y += 6; };
+            p(`Data: ${b.startDate}`);
+            p(`1. Qeradhënësi: Rent a car Niti, Zhiti-Viti.`);
+            p(`2. Qeramarrësi: ${b.clientName}, lindur në ${b.clientBirthplace} (${b.clientBirthdate}), adresa ${b.clientAddress}, ID: ${b.clientId}, Patentë: ${b.clientLicense}, Tel: ${b.clientPhone}.`);
+            p(`Automjeti: ${b.carBrand} ${b.carType}, Targa: ${b.carPlate}, VIN: ${b.carVin}.`);
+            p(`Periudha: Prej ${b.startDate} deri më ${b.endDate} (${b.days} ditë).`);
+            p(`Çmimi Total: ${b.totalPrice} EUR.`);
+            y += 15;
+            doc.text("Qeradhënësi: _____________________", 20, y);
+            doc.text("Qeramarrësi: _____________________", 120, y);
+            doc.save(`Kontrata_${b.clientName}.pdf`);
+        }
+
+        function downloadWord(i) {
+            const b = bookings[i];
+            const html = `<html><body style="font-family:Arial;">
+                <h2 style="color:#900; text-align:center;">RENT A CAR NITI</h2>
+                <h3 style="text-align:center;">KONTRATË QERAJE</h3>
+                <p><strong>Klienti:</strong> ${b.clientName} (Tel: ${b.clientPhone})</p>
+                <p><strong>Vetura:</strong> ${b.carBrand} ${b.carType} - Targa: ${b.carPlate}</p>
+                <p><strong>Periudha:</strong> ${b.startDate} - ${b.endDate} (${b.days} ditë)</p>
+                <p><strong>Totali:</strong> ${b.totalPrice} EUR</p>
+            </body></html>`;
+            const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `Kontrata_${b.clientName}.doc`;
+            a.click();
+        }
+
+        renderClientFleet();
     </script>
 </body>
 </html>
